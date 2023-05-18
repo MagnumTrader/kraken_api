@@ -1,6 +1,7 @@
 #![allow(unused)]
 mod messages;
 
+use core::panic;
 use std::{net::TcpStream, unimplemented};
 use tungstenite::{connect, stream::MaybeTlsStream, Message, WebSocket};
 use vevgren_api_interface::{commands::ApiCommand, events::ApiEvent};
@@ -21,7 +22,7 @@ impl Api {
         }
     }
 
-    fn connect_to_socket(&mut self) -> Result<(), String> {
+    pub fn connect_to_socket(&mut self) -> Result<(), String> {
         match connect(APIURL) {
             Ok(x) => {
                 self.socket = Some(x.0);
@@ -35,7 +36,7 @@ impl Api {
         Ok(())
     }
 
-    fn subscribe(&mut self, symbol: String) {
+    pub fn subscribe(&mut self, symbol: String) {
         match self.socket.as_mut() {
             Some(x) => {
                 x.write_message(tungstenite::Message::Text("Hejsan".to_string()));
@@ -46,13 +47,15 @@ impl Api {
         };
     }
 
-    fn read_message(&self) -> Message {
+    pub async fn read_message(&mut self) -> Message {
+        //TODO: Read Message: kopiera från tidigare
         // Implements a future to be able to listen to both command and events
-        unimplemented!()
+        self.socket.as_mut().unwrap().read_message().unwrap()
     }
 
     ///Returns the ApiEvent of a specific message to be sent for handling
-    fn parse_to_event(message: String) -> ApiEvent {
+    pub fn parse_to_event(message: String) -> ApiEvent {
+        //TODO: Trade skall vara klar i tidigare filen, implementera också book
         unimplemented!()
     }
 
