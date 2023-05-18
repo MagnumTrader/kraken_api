@@ -1,6 +1,6 @@
-/// Standard messages to be sent over socket
-///
+use serde::Serialize;
 
-
-
-// use string versions first?
+#[derive(Debug, Serialize)]
+struct SubscribeMessage {
+    symbols: Vec<String>,
+}
