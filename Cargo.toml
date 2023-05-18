@@ -1,0 +1,11 @@
+[package]
+name = "kraken_api"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.28.1", features = ["sync", "net", "rt", "macros"] }
+tungstenite = { version = "0.19.0", features = ["rustls-tls-native-roots"] }
+vevgren_api_interface = {version = "*", path ="../vevgren_api_interface/"} 
