@@ -1,25 +1,21 @@
-#![allow(unused)]
 mod messages;
 
-use core::panic;
-use serde;
-use serde_json::Value;
-use std::{net::TcpStream, str::FromStr, unimplemented};
+use messages::{Subscription, SubscriptionName};
+use serde_json::{to_string, Value};
+use std::{net::TcpStream, str::FromStr};
 use tungstenite::{connect, stream::MaybeTlsStream, Message, WebSocket};
 use vevgren_api_interface::{
     commands::ApiCommand,
     events::{ApiEvent, MarketUpdate, PriceUpdate, Trade},
 };
 
-//
-//
-//
-//
-//
-//
-//
+// URL and settings for this Api
 const APIURL: &str = "wss://ws.kraken.com";
-
+//
+//
+//
+//
+//
 /// Kraken API uses the vevgren_api_interface to standardize messages,.
 pub struct Api {
     socket: Option<WebSocket<MaybeTlsStream<TcpStream>>>,
@@ -47,35 +43,26 @@ impl Api {
         };
         Ok(())
     }
-
-    pub fn subscribe(&mut self, symbol: String) {
+    pub fn subscribe(&mut self, symbol: &str) {
         match self.socket.as_mut() {
             Some(x) => {
-                //TODO: Borde ha några strängar för att komma åt?
-                //kan jag producera strängen själv= det är en vec av symbols,
-                x.write_message(tungstenite::Message::Text("Hejsan".to_string()));
+                let subs_msg = Subscription::new(symbol, SubscriptionName::Trade); //TODO: Builder?
+                let s = to_string(&subs_msg).unwrap();
+                x.write_message(tungstenite::Message::Text(s)).unwrap();
             }
             None => {
-                println!("socket not connected, cant subscribe");
+                println!("socket not connected, can't subscribe");
             }
         };
     }
-    fn parse_message_to_string(command: ApiCommand) {
-        // TODO: Create string to pass into a Tungstenite message or other
-        // Using Serde_Json for parsing from correct #[derive(Debug)]
-        // !!!!!! Den här funktionen borde ligga under messages
-        unimplemented!()
-    }
 
-    pub fn read_message(&mut self) -> Message {
-        //TODO: Read Message: kopiera från tidigare
-        // Implements a future to be able to listen to both command and events
+    pub async fn read_message(&mut self) -> Message {
+        //BUG: Behöver en yield här! så vi inte behöver vänta på HB
         self.socket.as_mut().unwrap().read_message().unwrap()
     }
 
     ///Returns the ApiEvent of a specific message to be sent for handling
-    pub fn parse_to_event(s: String) -> ApiEvent {
-        //TODO: Trade skall vara klar i tidigare filen, implementera också book
+    pub fn parse_to_event(&self, s: String) -> ApiEvent {
         let message_as_value = Value::from_str(&s).unwrap();
 
         match message_as_value {
@@ -150,7 +137,7 @@ impl Api {
     }
 }
 
-fn new_trade_event(api_channel: u64, symbol: String, trades: Vec<Value>) -> ApiEvent {
+fn new_trade_event(_api_channel: u64, symbol: String, trades: Vec<Value>) -> ApiEvent {
     let collected_trades: Vec<Trade> = trades
         .into_iter()
         .map(|x| {
