@@ -6,24 +6,19 @@ use tokio::{io::AsyncReadExt, select, sync::mpsc::channel};
 //
 #[tokio::main]
 async fn main() {
-    let mut api = kraken_api::Api::new();
-    api.connect_to_socket().unwrap();
-    //HACK: needed becuase read_message() dont yield and no messages are coming in
-    api.subscribe("BTC/USD");
+    let mut api = kraken_api::Api::new().await;
 
     let (tx, mut rx) = channel::<String>(10);
     let (command_tx, mut command_rx) = channel::<String>(10);
-    // take input from the user to be able to subscribe
 
     tokio::spawn(async move {
         loop {
             select! {
-
                 msg = api.read_message() => {
-                    tx.send(msg.to_text().unwrap().to_string()).await.unwrap();
+                        tx.send(msg.to_text().unwrap().to_string()).await.unwrap();
                 }
                 command = command_rx.recv() => {
-                    api.subscribe(command.unwrap().as_str())
+                    api.subscribe(command.unwrap().as_str()).await
                 }
 
             }
@@ -38,17 +33,15 @@ async fn main() {
         }
     });
 
+    println!("Welcome to the kraken api, type a symbol to subscribe to the last price");
+    println!("Symbol example: BTC/USD, ETH/USD, LTC/USD");
     loop {
         select! {
             message_from_api = rx.recv() => {
                 println!("message: {}", message_from_api.unwrap());
             }
             input = rx2.recv() => {
-                //TODO: Parse the string messaqges -command -args
-                //subscribe btc/USD
-                //
                 command_tx.send(input.unwrap()).await.unwrap();
-
             }
         }
     }

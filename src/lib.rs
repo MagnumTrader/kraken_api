@@ -1,9 +1,15 @@
+#![allow(unused)]
 mod messages;
 
+use futures::{
+    stream::{SplitSink, SplitStream},
+    SinkExt, StreamExt,
+};
 use messages::{Subscription, SubscriptionName};
 use serde_json::{to_string, Value};
-use std::{net::TcpStream, str::FromStr};
-use tungstenite::{connect, stream::MaybeTlsStream, Message, WebSocket};
+use std::str::FromStr;
+use tokio::net::TcpStream;
+use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 use vevgren_api_interface::{
     commands::ApiCommand,
     events::{ApiEvent, MarketUpdate, PriceUpdate, Trade},
@@ -18,47 +24,33 @@ const APIURL: &str = "wss://ws.kraken.com";
 //
 /// Kraken API uses the vevgren_api_interface to standardize messages,.
 pub struct Api {
-    socket: Option<WebSocket<MaybeTlsStream<TcpStream>>>,
+    write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+    read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
     connected: bool,
 }
 
 impl Api {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
+        let mut socket = connect_async(APIURL).await.unwrap().0;
+        let (write, mut read) = socket.split();
+
+        read.next().await;
         Self {
-            socket: None,
-            connected: false,
+            connected: true,
+            write,
+            read,
         }
     }
 
-    pub fn connect_to_socket(&mut self) -> Result<(), String> {
-        match connect(APIURL) {
-            Ok(x) => {
-                self.socket = Some(x.0);
-                self.connected = true;
-            }
-            Err(e) => {
-                println!("error when connecting to Kraken APi: \n{}", e);
-                return Err(e.to_string());
-            }
-        };
-        Ok(())
-    }
-    pub fn subscribe(&mut self, symbol: &str) {
-        match self.socket.as_mut() {
-            Some(x) => {
-                let subs_msg = Subscription::new(symbol, SubscriptionName::Trade); //TODO: Builder?
-                let s = to_string(&subs_msg).unwrap();
-                x.write_message(tungstenite::Message::Text(s)).unwrap();
-            }
-            None => {
-                println!("socket not connected, can't subscribe");
-            }
-        };
+    pub async fn subscribe(&mut self, symbol: &str) {
+        let subs_msg = Subscription::new(symbol, SubscriptionName::Trade);
+        let msg = to_string(&subs_msg).unwrap();
+
+        self.write.send(Message::Text(msg)).await;
     }
 
     pub async fn read_message(&mut self) -> Message {
-        //BUG: Behöver en yield här! så vi inte behöver vänta på HB
-        self.socket.as_mut().unwrap().read_message().unwrap()
+        self.read.next().await.unwrap().unwrap()
     }
 
     ///Returns the ApiEvent of a specific message to be sent for handling
